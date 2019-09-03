@@ -11,7 +11,6 @@ from torch.autograd import Variable
 import numpy as np
 import torchvision
 import torchvision.transforms as transforms
-import visdom
 import os
 import sys
 import time
@@ -64,8 +63,6 @@ parser.add_argument('-noActnorm', '--noActnorm', dest='noActnorm', action='store
 parser.add_argument('--nonlin', default="elu", type=str, choices=["relu", "elu", "sorting", "softplus"])
 parser.add_argument('--dataset', default='cifar10', type=str, help='dataset')
 parser.add_argument('--save_dir', default=None, type=str, help='directory to save results')
-parser.add_argument('--vis_port', default=8097, type=int, help="port for visdom")
-parser.add_argument('--vis_server', default="localhost", type=str, help="server for visdom")
 parser.add_argument('--log_every', default=10, type=int, help='logs every x iters')
 parser.add_argument('-log_verbose', '--log_verbose', dest='log_verbose', action='store_true',
                     help='verbose logging: sigmas, max gradient')
@@ -219,10 +216,6 @@ def main():
         in_shape = (3, 32, 32)
 
 
-    # setup logging with visdom
-    viz = visdom.Visdom(port=args.vis_port, server="http://" + args.vis_server)
-    assert viz.check_connection(), "Could not make visdom"
-
     if args.deterministic:
         trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.batch,
                                                   shuffle=True, num_workers=2, worker_init_fn=np.random.seed(1234))
@@ -315,7 +308,7 @@ def main():
         else:
             model.set_num_terms(args.numSeriesTerms)
         model = torch.nn.DataParallel(model.module)
-        test(best_objective, args, model, start_epoch, testloader, viz, use_cuda, test_log)
+        test(best_objective, args, model, start_epoch, testloader,  use_cuda, test_log)
         return
 
     print('|  Train Epochs: ' + str(args.epochs))
@@ -339,14 +332,14 @@ def main():
 
     for epoch in range(1, 1+args.epochs):
         start_time = time.time()
-        train(args, model, optimizer, epoch, trainloader, trainset, viz, use_cuda, train_log)
+        train(args, model, optimizer, epoch, trainloader, trainset, use_cuda, train_log)
         epoch_time = time.time() - start_time
         elapsed_time += epoch_time
         print('| Elapsed time : %d:%02d:%02d' % (get_hms(elapsed_time)))
 
     print('Testing model')
     test_log = open(os.path.join(args.save_dir, "test_log.txt"), 'w')
-    test_objective = test(test_objective, args, model, epoch, testloader, viz, use_cuda, test_log)
+    test_objective = test(test_objective, args, model, epoch, testloader, use_cuda, test_log)
     print('* Test results : objective = %.2f%%' % (test_objective))
     with open(os.path.join(args.save_dir, 'final.txt'), 'w') as f:
         f.write(str(test_objective))
